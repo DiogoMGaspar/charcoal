@@ -1,5 +1,9 @@
 use crate::settings::{ResizeFilter, Settings};
 use anyhow::Result;
+use crossterm::{
+    QueueableCommand,
+    style::{self, Color, Print, SetForegroundColor},
+};
 use image::{DynamicImage, GenericImageView, imageops::FilterType};
 use std::io::{self, Write};
 
@@ -21,6 +25,15 @@ impl From<ResizeFilter> for FilterType {
 struct AsciiPixel {
     /// Character
     ch: u8,
+
+    /// Red value
+    r: u8,
+
+    /// Green value
+    g: u8,
+
+    /// Blue value
+    b: u8,
 }
 
 /// Fully processed image
@@ -92,25 +105,33 @@ fn get_luminance(image: &image::RgbImage) -> Vec<f32> {
     luminance
 }
 
-/// Convert the given luminance values into the adequate ASCII characters
-fn to_ascii(luminance: &[f32]) -> Vec<AsciiPixel> {
-    luminance
-        .iter()
-        .map(|&l| AsciiPixel {
-            ch: luminance_to_char(l),
+/// Convert the given luminance values into the adequate ASCII characters and colours
+fn to_ascii(image: &image::RgbImage, luminance: &[f32]) -> Vec<AsciiPixel> {
+    image
+        .pixels()
+        .zip(luminance)
+        .map(|(pixel, &l)| {
+            let [r, g, b] = pixel.0;
+
+            AsciiPixel {
+                ch: luminance_to_char(l),
+                r,
+                g,
+                b,
+            }
         })
         .collect()
 }
 
 /// Processes an image
 pub fn process_image(image: &DynamicImage) -> ProcessedImage {
-    let rgb = image.to_rgb8();
+    let rgb_image = image.to_rgb8();
 
-    let (width, height) = (rgb.width(), rgb.height());
+    let (width, height) = (rgb_image.width(), rgb_image.height());
 
-    let luminance = get_luminance(&rgb);
+    let luminance = get_luminance(&rgb_image);
 
-    let pixels = to_ascii(&luminance);
+    let pixels = to_ascii(&rgb_image, &luminance);
 
     ProcessedImage {
         width,
@@ -127,7 +148,7 @@ fn luminance_to_char(luminance: f32) -> u8 {
 }
 
 /// Prints an image as ASCII characters
-pub fn print_image(image: &ProcessedImage) -> io::Result<()> {
+pub fn print_image(image: &ProcessedImage, colour: bool) -> io::Result<()> {
     let mut stdout = io::BufWriter::new(io::stdout());
 
     let width = image.width as usize;
@@ -140,9 +161,21 @@ pub fn print_image(image: &ProcessedImage) -> io::Result<()> {
             let i = row + x;
             let pixel = &image.pixels[i];
 
-            stdout.write_all(&[pixel.ch])?;
+            if colour {
+                stdout.queue(SetForegroundColor(Color::Rgb {
+                    r: pixel.r,
+                    g: pixel.g,
+                    b: pixel.b,
+                }))?;
+            }
+
+            stdout.queue(Print(pixel.ch as char))?;
         }
-        stdout.write_all(b"\n")?;
+        stdout.queue(Print('\n'))?;
+    }
+
+    if colour {
+        stdout.queue(style::ResetColor)?;
     }
 
     stdout.flush()?;

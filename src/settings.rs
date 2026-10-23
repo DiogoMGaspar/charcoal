@@ -1,5 +1,6 @@
 use clap::{Parser, ValueEnum};
 use crossterm::terminal::size;
+use std::io::{self, IsTerminal};
 
 /// The maximum allowed size of the ASCII output
 const MAX_DIMENSION: u32 = 1024;
@@ -11,6 +12,19 @@ pub enum ResizeFilter {
     CatmullRom,
     Gaussian,
     Lanczos3,
+}
+
+/// When to colour the output
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ColourMode {
+    /// Colour only when printing to a terminal
+    Auto,
+
+    /// Always colour, even when piped or redirected
+    Always,
+
+    /// Never colour
+    Never,
 }
 
 /// The arguments a user can provide to the program
@@ -43,6 +57,10 @@ struct Args {
     /// The filter to be used when resizing the image
     #[arg(long = "resize-filter", value_enum, default_value_t = ResizeFilter::Lanczos3)]
     resize_filter: ResizeFilter,
+
+    /// When to use colour in the output
+    #[arg(long = "colour", value_enum, default_value_t = ColourMode::Auto)]
+    colour: ColourMode,
 }
 
 /// All the processed settings that came from the program arguments
@@ -62,6 +80,9 @@ pub struct Settings {
 
     /// The filter to be used when resizing the image
     pub resize_filter: ResizeFilter,
+
+    /// Whether the output should be coloured
+    pub colour: bool,
 }
 
 impl From<Args> for Settings {
@@ -87,12 +108,19 @@ impl From<Args> for Settings {
         let max_width = max_width.unwrap_or(DEFAULT_WIDTH).min(MAX_DIMENSION);
         let max_height = max_height.unwrap_or(DEFAULT_HEIGHT).min(MAX_DIMENSION);
 
+        let colour = match args.colour {
+            ColourMode::Auto => io::stdout().is_terminal(),
+            ColourMode::Always => true,
+            ColourMode::Never => false,
+        };
+
         Settings {
             file_path: args.file_path,
             max_width,
             max_height,
             char_ratio: args.char_ratio,
             resize_filter: args.resize_filter,
+            colour,
         }
     }
 }

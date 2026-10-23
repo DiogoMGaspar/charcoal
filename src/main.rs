@@ -14,7 +14,7 @@ fn main() -> Result<()> {
 
     let processed = process_image(&resized);
 
-    print_image(&processed)?;
+    print_image(&processed, settings.colour)?;
 
     Ok(())
 }
