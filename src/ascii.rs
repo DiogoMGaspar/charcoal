@@ -4,7 +4,10 @@ use crossterm::{
     QueueableCommand,
     style::{self, Color, Print, SetForegroundColor},
 };
-use image::{DynamicImage, GenericImageView, imageops::FilterType};
+use image::{
+    DynamicImage, RgbImage,
+    imageops::{self, FilterType},
+};
 use std::io::{self, Write};
 
 const ASCII_CHARS: &[u8] = b" .-=+*x#$&X@";
@@ -48,9 +51,30 @@ pub struct ProcessedImage {
     pixels: Vec<AsciiPixel>,
 }
 
-/// Attempts to load an image from a file
-pub fn load_image(file_path: &str) -> Result<DynamicImage> {
-    Ok(image::open(file_path)?)
+/// Blends transparent pixels over black and drops the alpha channel
+fn flatten_onto_black(image: DynamicImage) -> RgbImage {
+    if !image.color().has_alpha() {
+        return image.into_rgb8();
+    }
+
+    let rgba = image.into_rgba8();
+    let mut rgb = RgbImage::new(rgba.width(), rgba.height());
+
+    for (dst, src) in rgb.pixels_mut().zip(rgba.pixels()) {
+        let [r, g, b, a] = src.0;
+        let a = a as u16;
+
+        let blend = |c: u8| ((c as u16 * a + 127) / 255) as u8;
+
+        *dst = image::Rgb([blend(r), blend(g), blend(b)]);
+    }
+
+    rgb
+}
+
+/// Attempts to load an image from a file as RGB
+pub fn load_image(file_path: &str) -> Result<RgbImage> {
+    Ok(flatten_onto_black(image::open(file_path)?))
 }
 
 /// Calculates the dimensions the image should be resized to
@@ -77,7 +101,7 @@ fn calculate_dimensions(
 }
 
 /// Resizes an image to the correct number of characters
-pub fn resize_image(image: &DynamicImage, settings: &Settings) -> DynamicImage {
+pub fn resize_image(image: &RgbImage, settings: &Settings) -> RgbImage {
     let (width, height) = image.dimensions();
 
     let (new_width, new_height) = calculate_dimensions(
@@ -88,11 +112,11 @@ pub fn resize_image(image: &DynamicImage, settings: &Settings) -> DynamicImage {
         settings.char_ratio,
     );
 
-    image.resize_exact(new_width, new_height, settings.resize_filter.into())
+    imageops::resize(image, new_width, new_height, settings.resize_filter.into())
 }
 
 /// Gets the luminance of an image
-fn get_luminance(image: &image::RgbImage) -> Vec<f32> {
+fn get_luminance(image: &RgbImage) -> Vec<f32> {
     let mut luminance = Vec::with_capacity((image.width() * image.height()) as usize);
 
     // Using Rec. 709 luminance
@@ -173,7 +197,7 @@ fn edge_char(angle: f32) -> u8 {
 
 /// Convert the given luminance values into the adequate ASCII characters and colours
 fn to_ascii(
-    image: &image::RgbImage,
+    image: &RgbImage,
     luminance: &[f32],
     edges: &[f32],
     angles: &[f32],
@@ -204,16 +228,14 @@ fn to_ascii(
 }
 
 /// Processes an image
-pub fn process_image(image: &DynamicImage, edge_threshold: f32) -> ProcessedImage {
-    let rgb_image = image.to_rgb8();
+pub fn process_image(image: &RgbImage, edge_threshold: f32) -> ProcessedImage {
+    let (width, height) = image.dimensions();
 
-    let (width, height) = (rgb_image.width(), rgb_image.height());
-
-    let luminance = get_luminance(&rgb_image);
+    let luminance = get_luminance(image);
 
     let (edges, angles) = sobel(&luminance, width, height, edge_threshold);
 
-    let pixels = to_ascii(&rgb_image, &luminance, &edges, &angles, edge_threshold);
+    let pixels = to_ascii(image, &luminance, &edges, &angles, edge_threshold);
 
     ProcessedImage {
         width,
