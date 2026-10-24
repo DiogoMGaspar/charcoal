@@ -10,8 +10,6 @@ use image::{
 };
 use std::io::{self, Write};
 
-const ASCII_CHARS: &[u8] = b" .-=+*x#$&X@";
-
 impl From<ResizeFilter> for FilterType {
     fn from(f: ResizeFilter) -> Self {
         match f {
@@ -27,7 +25,7 @@ impl From<ResizeFilter> for FilterType {
 /// ASCII representation of a pixel
 struct AsciiPixel {
     /// Character
-    ch: u8,
+    ch: char,
 
     /// Red value
     r: u8,
@@ -178,30 +176,31 @@ fn sobel(luminance: &[f32], width: u32, height: u32, edge_threshold: f32) -> (Ve
 
 /// Convert a luminance value to its respective character
 #[inline]
-fn luminance_to_char(luminance: f32) -> u8 {
-    let i = (luminance * (ASCII_CHARS.len() - 1) as f32) as usize;
-    ASCII_CHARS[i]
+fn luminance_to_char(luminance: f32, ramp: &[char]) -> char {
+    let i = (luminance * (ramp.len() - 1) as f32) as usize;
+    ramp[i]
 }
 
 /// Gets the appropriate edge character based off the angle
-fn edge_char(angle: f32) -> u8 {
+fn edge_char(angle: f32) -> char {
     let a = (angle + std::f32::consts::PI).rem_euclid(2.0 * std::f32::consts::PI);
 
     match ((a / std::f32::consts::FRAC_PI_4).round() as i32) & 3 {
-        0 => b'|',
-        1 => b'\\',
-        2 => b'_',
-        _ => b'/',
+        0 => '|',
+        1 => '\\',
+        2 => '_',
+        _ => '/',
     }
 }
 
 /// Convert the given luminance values into the adequate ASCII characters and colours
 fn to_ascii(
-    image: &RgbImage,
+    image: &image::RgbImage,
     luminance: &[f32],
     edges: &[f32],
     angles: &[f32],
     edge_threshold: f32,
+    ramp: &[char],
 ) -> Vec<AsciiPixel> {
     let (width, height) = (image.width() as usize, image.height() as usize);
     let length = width * height;
@@ -218,7 +217,7 @@ fn to_ascii(
         let ch = if edges[i] >= edge_threshold {
             edge_char(angles[i])
         } else {
-            luminance_to_char(luminance[i])
+            luminance_to_char(luminance[i], ramp)
         };
 
         pixels.push(AsciiPixel { ch, r, g, b });
@@ -228,14 +227,14 @@ fn to_ascii(
 }
 
 /// Processes an image
-pub fn process_image(image: &RgbImage, edge_threshold: f32) -> ProcessedImage {
+pub fn process_image(image: &RgbImage, edge_threshold: f32, ramp: &[char]) -> ProcessedImage {
     let (width, height) = image.dimensions();
 
     let luminance = get_luminance(image);
 
     let (edges, angles) = sobel(&luminance, width, height, edge_threshold);
 
-    let pixels = to_ascii(image, &luminance, &edges, &angles, edge_threshold);
+    let pixels = to_ascii(image, &luminance, &edges, &angles, edge_threshold, ramp);
 
     ProcessedImage {
         width,
@@ -266,7 +265,7 @@ pub fn print_image(image: &ProcessedImage, colour: bool) -> io::Result<()> {
                 }))?;
             }
 
-            stdout.queue(Print(pixel.ch as char))?;
+            stdout.queue(Print(pixel.ch))?;
         }
         stdout.queue(Print('\n'))?;
     }

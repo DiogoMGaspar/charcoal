@@ -14,6 +14,40 @@ pub enum ResizeFilter {
     Lanczos3,
 }
 
+/// Built-in character ramps
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum RampPreset {
+    /// The default ramp
+    Standard,
+
+    /// A shorter, classic ramp
+    Simple,
+
+    /// Unicode block shading characters
+    Blocks,
+}
+
+impl RampPreset {
+    fn characters(self) -> &'static str {
+        match self {
+            RampPreset::Standard => " .-=+*x#$&X@",
+            RampPreset::Simple => " .:-=+*#%@",
+            RampPreset::Blocks => " ░▒▓█",
+        }
+    }
+}
+
+/// Validates a user-provided ramp
+fn parse_ramp(s: &str) -> Result<String, String> {
+    if s.chars().count() < 1 {
+        return Err("a ramp needs at least 1 character".to_string());
+    }
+    if s.chars().any(char::is_control) {
+        return Err("a ramp cannot contain control characters".to_string());
+    }
+    Ok(s.to_string())
+}
+
 /// When to colour the output
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum ColourMode {
@@ -58,6 +92,14 @@ struct Args {
     #[arg(long = "resize-filter", value_enum, default_value_t = ResizeFilter::Lanczos3)]
     resize_filter: ResizeFilter,
 
+    /// Character ramp used for the output
+    #[arg(long = "ramp", value_enum, default_value_t = RampPreset::Standard, conflicts_with = "custom_ramp")]
+    ramp: RampPreset,
+
+    /// Custom character ramp, from darkest to brightest (at least 2 characters)
+    #[arg(long = "custom-ramp", value_parser = parse_ramp)]
+    custom_ramp: Option<String>,
+
     /// When to use colour in the output
     #[arg(long = "colour", value_enum, default_value_t = ColourMode::Auto)]
     colour: ColourMode,
@@ -84,6 +126,9 @@ pub struct Settings {
 
     /// The filter to be used when resizing the image
     pub resize_filter: ResizeFilter,
+
+    /// Characters used to represent brightness, from darkest to brightest
+    pub ramp: Vec<char>,
 
     /// Whether the output should be coloured
     pub colour: bool,
@@ -121,12 +166,18 @@ impl From<Args> for Settings {
             ColourMode::Never => false,
         };
 
+        let ramp: Vec<char> = match args.custom_ramp {
+            Some(custom) => custom.chars().collect(),
+            None => args.ramp.characters().chars().collect(),
+        };
+
         Settings {
             file_path: args.file_path,
             max_width,
             max_height,
             char_ratio: args.char_ratio,
             resize_filter: args.resize_filter,
+            ramp,
             colour,
             edge_threshold: args.edge_threshold.clamp(0.0, 1.0),
         }

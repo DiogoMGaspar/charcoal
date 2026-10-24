@@ -12,7 +12,7 @@ fn main() -> Result<()> {
 
     let resized = resize_image(&image, &settings);
 
-    let processed = process_image(&resized, settings.edge_threshold);
+    let processed = process_image(&resized, settings.edge_threshold, &settings.ramp);
 
     print_image(&processed, settings.colour)?;
 
