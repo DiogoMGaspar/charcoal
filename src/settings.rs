@@ -104,6 +104,10 @@ struct Args {
     #[arg(long = "colour", value_enum, default_value_t = ColourMode::Auto)]
     colour: ColourMode,
 
+    /// Background brightness behind each character [0.0, 1.0]. Needs coloured output
+    #[arg(long = "background", default_value_t = 0.0)]
+    background: f32,
+
     /// Edge detection threshold [0.0, 1.0]
     #[arg(short = 'e', long = "edge-threshold", default_value_t = 0.4)]
     edge_threshold: f32,
@@ -132,6 +136,9 @@ pub struct Settings {
 
     /// Whether the output should be coloured
     pub colour: bool,
+
+    /// Background brightness as a fraction of the pixel colour [0.0, 1.0]
+    pub background: f32,
 
     /// Edge detection threshold [0.0, 1.0]
     pub edge_threshold: f32,
@@ -179,6 +186,7 @@ impl From<Args> for Settings {
             resize_filter: args.resize_filter,
             ramp,
             colour,
+            background: args.background.clamp(0.0, 1.0),
             edge_threshold: args.edge_threshold.clamp(0.0, 1.0),
         }
     }

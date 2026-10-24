@@ -2,7 +2,7 @@ use crate::settings::{ResizeFilter, Settings};
 use anyhow::Result;
 use crossterm::{
     QueueableCommand,
-    style::{self, Color, Print, SetForegroundColor},
+    style::{self, Color, Print, SetBackgroundColor, SetForegroundColor},
 };
 use image::{
     DynamicImage, RgbImage,
@@ -127,9 +127,7 @@ fn get_luminance(image: &RgbImage) -> Vec<f32> {
     luminance
 }
 
-/// Applies the Sobel operator over an image
-///
-/// Gets the magnitude and angle of the edges of the image
+/// Applies the Sobel operator over an image to get the magnitude and angle of its edges
 fn sobel(luminance: &[f32], width: u32, height: u32, edge_threshold: f32) -> (Vec<f32>, Vec<f32>) {
     let width = width as usize;
     let height = height as usize;
@@ -177,7 +175,7 @@ fn sobel(luminance: &[f32], width: u32, height: u32, edge_threshold: f32) -> (Ve
 /// Convert a luminance value to its respective character
 #[inline]
 fn luminance_to_char(luminance: f32, ramp: &[char]) -> char {
-    let i = (luminance * (ramp.len() - 1) as f32) as usize;
+    let i = ((luminance * ramp.len() as f32) as usize).min(ramp.len() - 1);
     ramp[i]
 }
 
@@ -243,12 +241,19 @@ pub fn process_image(image: &RgbImage, edge_threshold: f32, ramp: &[char]) -> Pr
     }
 }
 
+/// Scales a colour channel to the given percentage of its value
+fn scale(channel: u8, fraction: f32) -> u8 {
+    (channel as f32 * fraction).round() as u8
+}
+
 /// Prints an image as ASCII characters
-pub fn print_image(image: &ProcessedImage, colour: bool) -> io::Result<()> {
+pub fn print_image(image: &ProcessedImage, colour: bool, background: f32) -> io::Result<()> {
     let mut stdout = io::BufWriter::new(io::stdout());
 
     let width = image.width as usize;
     let height = image.height as usize;
+
+    let use_background = colour && background > 0.0;
 
     for y in 0..height {
         let row = y * width;
@@ -265,8 +270,21 @@ pub fn print_image(image: &ProcessedImage, colour: bool) -> io::Result<()> {
                 }))?;
             }
 
+            if use_background {
+                stdout.queue(SetBackgroundColor(Color::Rgb {
+                    r: scale(pixel.r, background),
+                    g: scale(pixel.g, background),
+                    b: scale(pixel.b, background),
+                }))?;
+            }
+
             stdout.queue(Print(pixel.ch))?;
         }
+
+        if use_background {
+            stdout.queue(style::ResetColor)?;
+        }
+
         stdout.queue(Print('\n'))?;
     }
 
