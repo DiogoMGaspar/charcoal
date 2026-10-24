@@ -61,6 +61,10 @@ struct Args {
     /// When to use colour in the output
     #[arg(long = "colour", value_enum, default_value_t = ColourMode::Auto)]
     colour: ColourMode,
+
+    /// Edge detection threshold [0.0, 1.0]
+    #[arg(short = 'e', long = "edge-threshold", default_value_t = 0.4)]
+    edge_threshold: f32,
 }
 
 /// All the processed settings that came from the program arguments
@@ -83,6 +87,9 @@ pub struct Settings {
 
     /// Whether the output should be coloured
     pub colour: bool,
+
+    /// Edge detection threshold [0.0, 1.0]
+    pub edge_threshold: f32,
 }
 
 impl From<Args> for Settings {
@@ -121,6 +128,7 @@ impl From<Args> for Settings {
             char_ratio: args.char_ratio,
             resize_filter: args.resize_filter,
             colour,
+            edge_threshold: args.edge_threshold.clamp(0.0, 1.0),
         }
     }
 }
