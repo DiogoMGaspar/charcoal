@@ -1,9 +1,13 @@
 use clap::{Parser, ValueEnum};
-use crossterm::terminal::size;
+use crossterm::terminal;
 use std::io::{self, IsTerminal};
 
 /// The maximum allowed size of the ASCII output
 const MAX_DIMENSION: u32 = 1024;
+
+/// Output size used when neither the user nor the terminal provides one
+const DEFAULT_WIDTH: u32 = 80;
+const DEFAULT_HEIGHT: u32 = 60;
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum ResizeFilter {
@@ -14,7 +18,6 @@ pub enum ResizeFilter {
     Lanczos3,
 }
 
-/// Built-in character ramps
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum RampPreset {
     /// The default ramp
@@ -39,7 +42,7 @@ impl RampPreset {
 
 /// Validates a user-provided ramp
 fn parse_ramp(s: &str) -> Result<String, String> {
-    if s.chars().count() < 1 {
+    if s.is_empty() {
         return Err("a ramp needs at least 1 character".to_string());
     }
     if s.chars().any(char::is_control) {
@@ -48,7 +51,14 @@ fn parse_ramp(s: &str) -> Result<String, String> {
     Ok(s.to_string())
 }
 
-/// When to colour the output
+/// Resolves the ramp to use: the custom one if provided, otherwise the preset
+fn resolve_ramp(custom: Option<String>, preset: RampPreset) -> Vec<char> {
+    match custom {
+        Some(custom) => custom.chars().collect(),
+        None => preset.characters().chars().collect(),
+    }
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum ColourMode {
     /// Colour only when printing to a terminal
@@ -61,7 +71,16 @@ enum ColourMode {
     Never,
 }
 
-/// The arguments a user can provide to the program
+impl ColourMode {
+    fn should_colour(self) -> bool {
+        match self {
+            ColourMode::Auto => io::stdout().is_terminal(),
+            ColourMode::Always => true,
+            ColourMode::Never => false,
+        }
+    }
+}
+
 #[derive(Debug, Parser)]
 #[command(
     version,
@@ -96,7 +115,7 @@ struct Args {
     #[arg(long = "ramp", value_enum, default_value_t = RampPreset::Standard, conflicts_with = "custom_ramp")]
     ramp: RampPreset,
 
-    /// Custom character ramp, from darkest to brightest (at least 2 characters)
+    /// Custom character ramp, from darkest to brightest
     #[arg(long = "custom-ramp", value_parser = parse_ramp)]
     custom_ramp: Option<String>,
 
@@ -113,7 +132,6 @@ struct Args {
     edge_threshold: f32,
 }
 
-/// All the processed settings that came from the program arguments
 #[derive(Debug)]
 pub struct Settings {
     /// Path to the image file
@@ -144,48 +162,34 @@ pub struct Settings {
     pub edge_threshold: f32,
 }
 
+/// Attempts to get the size of the terminal
+fn terminal_size(fit_terminal: bool) -> (Option<u16>, Option<u16>) {
+    fit_terminal
+        .then(terminal::size)
+        .and_then(Result::ok)
+        .unzip()
+}
+
+/// Picks the explicit value, then the terminal value, then the default
+fn pick_dimension(explicit: Option<u32>, terminal: Option<u16>, default: u32) -> u32 {
+    explicit
+        .or(terminal.filter(|&t| t > 0).map(u32::from))
+        .unwrap_or(default)
+        .min(MAX_DIMENSION)
+}
+
 impl From<Args> for Settings {
     fn from(args: Args) -> Self {
-        const DEFAULT_WIDTH: u32 = 80;
-        const DEFAULT_HEIGHT: u32 = 60;
-
-        let mut max_width = args.max_width;
-        let mut max_height = args.max_height;
-
-        // Giving precedence to width and height values provided manually
-        if args.fit_terminal
-            && let Ok((w, h)) = size()
-        {
-            if max_width.is_none() && w > 0 {
-                max_width = Some(w as u32);
-            }
-            if max_height.is_none() && h > 0 {
-                max_height = Some(h as u32);
-            }
-        }
-
-        let max_width = max_width.unwrap_or(DEFAULT_WIDTH).min(MAX_DIMENSION);
-        let max_height = max_height.unwrap_or(DEFAULT_HEIGHT).min(MAX_DIMENSION);
-
-        let colour = match args.colour {
-            ColourMode::Auto => io::stdout().is_terminal(),
-            ColourMode::Always => true,
-            ColourMode::Never => false,
-        };
-
-        let ramp: Vec<char> = match args.custom_ramp {
-            Some(custom) => custom.chars().collect(),
-            None => args.ramp.characters().chars().collect(),
-        };
+        let (terminal_width, terminal_height) = terminal_size(args.fit_terminal);
 
         Settings {
             file_path: args.file_path,
-            max_width,
-            max_height,
+            max_width: pick_dimension(args.max_width, terminal_width, DEFAULT_WIDTH),
+            max_height: pick_dimension(args.max_height, terminal_height, DEFAULT_HEIGHT),
             char_ratio: args.char_ratio,
             resize_filter: args.resize_filter,
-            ramp,
-            colour,
+            ramp: resolve_ramp(args.custom_ramp, args.ramp),
+            colour: args.colour.should_colour(),
             background: args.background.clamp(0.0, 1.0),
             edge_threshold: args.edge_threshold.clamp(0.0, 1.0),
         }
