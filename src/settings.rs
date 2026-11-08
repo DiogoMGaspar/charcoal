@@ -10,8 +10,10 @@ const DEFAULT_HEIGHT: u32 = 60;
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum ResizeFilter {
     Nearest,
-    Triangle,
+    Bilinear,
+    Hamming,
     CatmullRom,
+    Mitchell,
     Gaussian,
     Lanczos3,
 }
@@ -137,7 +139,6 @@ struct Args {
     edge_threshold: f32,
 }
 
-#[derive(Debug)]
 pub struct Settings {
     pub file_path: String,
     pub max_width: u32,

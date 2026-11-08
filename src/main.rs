@@ -1,8 +1,10 @@
 mod ascii;
+mod resize;
 mod settings;
 
 use anyhow::Result;
-use ascii::{load_image, print_image, process_image, resize_image};
+use ascii::{load_image, print_image, process_image};
+use resize::resize_image;
 use settings::parse_args;
 
 fn main() -> Result<()> {
