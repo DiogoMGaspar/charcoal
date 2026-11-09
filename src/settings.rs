@@ -7,7 +7,7 @@ const MAX_DIMENSION: u32 = 1024;
 const DEFAULT_WIDTH: u32 = 80;
 const DEFAULT_HEIGHT: u32 = 60;
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Clone, Copy, ValueEnum)]
 pub enum ResizeFilter {
     Nearest,
     Bilinear,
@@ -18,12 +18,12 @@ pub enum ResizeFilter {
     Lanczos3,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Clone, Copy, ValueEnum)]
 enum RampPreset {
     /// The default ramp
     Standard,
 
-    /// A shorter, classic ramp
+    /// A shorter ramp
     Simple,
 
     /// Unicode block shading characters
@@ -34,7 +34,7 @@ impl RampPreset {
     fn characters(self) -> &'static str {
         match self {
             RampPreset::Standard => " .-=+*x#$&X@",
-            RampPreset::Simple => " .:-=+*#%@",
+            RampPreset::Simple => " .:=+*#%@",
             RampPreset::Blocks => " ░▒▓█",
         }
     }
@@ -57,7 +57,7 @@ fn resolve_ramp(custom: Option<String>, preset: RampPreset) -> Vec<char> {
     }
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Clone, Copy, ValueEnum)]
 enum ColourMode {
     /// Colour only when printing to a terminal
     Auto,
@@ -88,7 +88,7 @@ fn parse_char_ratio(s: &str) -> Result<f32, String> {
     }
 }
 
-#[derive(Debug, Parser)]
+#[derive(Parser)]
 #[command(
     version,
     about = "Convert images to ASCII art",
@@ -106,13 +106,13 @@ struct Args {
     #[arg(short = 'H', long = "max-height", value_parser = clap::value_parser!(u32).range(1..=MAX_DIMENSION as i64))]
     max_height: Option<u32>,
 
-    /// Character aspect ratio
-    #[arg(short = 'c', long = "char-ratio", default_value_t = 2.0, value_parser = parse_char_ratio, allow_negative_numbers = true)]
-    char_ratio: f32,
-
     /// Try to scale the image so as to fit the terminal's dimensions
     #[arg(long = "fit-terminal")]
     fit_terminal: bool,
+
+    /// Character aspect ratio
+    #[arg(short = 'c', long = "char-ratio", default_value_t = 2.0, value_parser = parse_char_ratio, allow_negative_numbers = true)]
+    char_ratio: f32,
 
     /// The filter to be used when resizing the image
     #[arg(long = "resize-filter", value_enum, default_value_t = ResizeFilter::Lanczos3)]

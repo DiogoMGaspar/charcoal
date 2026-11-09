@@ -1,6 +1,7 @@
 use crate::settings::{ResizeFilter, Settings};
-use fast_image_resize::{FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer, images::Image};
-use image::{DynamicImage, RgbImage, RgbaImage};
+use anyhow::Result;
+use fast_image_resize::{FilterType, ResizeAlg, ResizeOptions, Resizer};
+use image::{DynamicImage, GenericImageView, RgbaImage};
 
 impl From<ResizeFilter> for ResizeAlg {
     fn from(f: ResizeFilter) -> Self {
@@ -38,22 +39,8 @@ fn calculate_dimensions(
     }
 }
 
-fn resize_raw(
-    raw: Vec<u8>,
-    pixel_type: PixelType,
-    (width, height): (u32, u32),
-    (new_width, new_height): (u32, u32),
-    options: &ResizeOptions,
-) -> Vec<u8> {
-    let src = Image::from_vec_u8(width, height, raw, pixel_type).unwrap();
-    let mut dst = Image::new(new_width, new_height, pixel_type);
-    Resizer::new().resize(&src, &mut dst, options).unwrap();
-
-    dst.into_vec()
-}
-
-pub fn resize_image(image: DynamicImage, settings: &Settings) -> RgbaImage {
-    let (width, height) = (image.width(), image.height());
+pub fn resize_image(image: DynamicImage, settings: &Settings) -> Result<RgbaImage> {
+    let (width, height) = image.dimensions();
 
     let (new_width, new_height) = calculate_dimensions(
         width,
@@ -65,18 +52,8 @@ pub fn resize_image(image: DynamicImage, settings: &Settings) -> RgbaImage {
 
     let options = ResizeOptions::new().resize_alg(settings.resize_filter.into());
 
-    let (from, to) = ((width, height), (new_width, new_height));
+    let mut resized = DynamicImage::new(new_width, new_height, image.color());
+    Resizer::new().resize(&image, &mut resized, &options)?;
 
-    if image.color().has_alpha() {
-        let raw = image.into_rgba8().into_raw();
-        let resized = resize_raw(raw, PixelType::U8x4, from, to, &options);
-
-        RgbaImage::from_raw(new_width, new_height, resized).unwrap()
-    } else {
-        let raw = image.into_rgb8().into_raw();
-        let resized = resize_raw(raw, PixelType::U8x3, from, to, &options);
-
-        let small = RgbImage::from_raw(new_width, new_height, resized).unwrap();
-        DynamicImage::from(small).into_rgba8()
-    }
+    Ok(resized.into_rgba8())
 }

@@ -51,11 +51,11 @@ The tool exposes several command-line options that let you control the output si
 
 - Limit the ASCII output dimensions
 - Automatically scale the image to fit your terminal
-- Tune edge detection
 - Adjust the character aspect ratio
 - Choose the image resizing filter
+- Pick a character ramp or create your own
 - Determine whether to use colour
 - Add a coloured background behind each character
-- Pick a character ramp or create your own
+- Tune edge detection
 
 Make sure to use the **-h** or **--help** flags for more information on how to use the tool.
