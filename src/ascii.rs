@@ -56,7 +56,7 @@ pub fn load_image(file_path: &str) -> Result<DynamicImage> {
     Ok(image::open(file_path)?)
 }
 
-fn get_intensity(image: &RgbaImage) -> Vec<f32> {
+fn get_intensity(image: &RgbaImage, gamma: f32) -> Vec<f32> {
     let has_transparency = image.pixels().any(|p| p[3] < 255);
 
     if has_transparency {
@@ -67,9 +67,11 @@ fn get_intensity(image: &RgbaImage) -> Vec<f32> {
         (0.2126 * f32::from(r) + 0.7152 * f32::from(g) + 0.0722 * f32::from(b)) / 255.0
     };
 
+    let exponent = 1.0 / gamma;
+
     image
         .pixels()
-        .map(|&Rgba([r, g, b, _])| rec709(r, g, b))
+        .map(|&Rgba([r, g, b, _])| rec709(r, g, b).powf(exponent))
         .collect()
 }
 
@@ -148,10 +150,15 @@ fn to_ascii(
     pixels
 }
 
-pub fn process_image(image: &RgbaImage, edge_threshold: f32, ramp: &[char]) -> ProcessedImage {
+pub fn process_image(
+    image: &RgbaImage,
+    edge_threshold: f32,
+    ramp: &[char],
+    gamma: f32,
+) -> ProcessedImage {
     let (width, height) = image.dimensions();
 
-    let intensity = get_intensity(image);
+    let intensity = get_intensity(image, gamma);
 
     let gradients = sobel(&intensity, width, height);
 

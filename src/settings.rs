@@ -79,12 +79,12 @@ impl ColourMode {
     }
 }
 
-fn parse_char_ratio(s: &str) -> Result<f32, String> {
-    let ratio: f32 = s.parse().map_err(|_| "not a number".to_string())?;
-    if ratio.is_finite() && ratio > 0.0 {
-        Ok(ratio)
+fn parse_positive(string: &str) -> Result<f32, String> {
+    let value: f32 = string.parse().map_err(|_| "not a number".to_string())?;
+    if value.is_finite() && value > 0.0 {
+        Ok(value)
     } else {
-        Err("char ratio must be a positive, finite number".to_string())
+        Err("must be a positive, finite number".to_string())
     }
 }
 
@@ -111,7 +111,7 @@ struct Args {
     fit_terminal: bool,
 
     /// Character aspect ratio
-    #[arg(short = 'c', long = "char-ratio", default_value_t = 2.0, value_parser = parse_char_ratio, allow_negative_numbers = true)]
+    #[arg(short = 'c', long = "char-ratio", default_value_t = 2.0, value_parser = parse_positive, allow_negative_numbers = true)]
     char_ratio: f32,
 
     /// The filter to be used when resizing the image
@@ -130,6 +130,10 @@ struct Args {
     #[arg(long = "colour", value_enum, default_value_t = ColourMode::Auto)]
     colour: ColourMode,
 
+    /// Gamma correction to control the luminance of the image
+    #[arg(long = "gamma", default_value_t = 1.0, value_parser = parse_positive, allow_negative_numbers = true)]
+    gamma: f32,
+
     /// Background brightness behind each character [0.0, 1.0]. Needs coloured output
     #[arg(long = "background", default_value_t = 0.0)]
     background: f32,
@@ -147,6 +151,7 @@ pub struct Settings {
     pub resize_filter: ResizeFilter,
     pub ramp: Vec<char>,
     pub colour: bool,
+    pub gamma: f32,
     pub background: f32,
     pub edge_threshold: f32,
 }
@@ -177,6 +182,7 @@ impl From<Args> for Settings {
             resize_filter: args.resize_filter,
             ramp: resolve_ramp(args.custom_ramp, args.ramp),
             colour: args.colour.should_colour(),
+            gamma: args.gamma,
             background: args.background.clamp(0.0, 1.0),
             edge_threshold: args.edge_threshold.clamp(0.0, 1.0),
         }

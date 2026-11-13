@@ -14,7 +14,12 @@ fn main() -> Result<()> {
 
     let resized = resize_image(image, &settings)?;
 
-    let processed = process_image(&resized, settings.edge_threshold, &settings.ramp);
+    let processed = process_image(
+        &resized,
+        settings.edge_threshold,
+        &settings.ramp,
+        settings.gamma,
+    );
 
     print_image(&processed, settings.colour, settings.background)?;
 

@@ -55,6 +55,7 @@ The tool exposes several command-line options that let you control the output si
 - Choose the image resizing filter
 - Pick a character ramp or create your own
 - Determine whether to use colour
+- Apply gamma correction to control the luminance
 - Add a coloured background behind each character
 - Tune edge detection
 
